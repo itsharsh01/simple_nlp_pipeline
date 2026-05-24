@@ -1,24 +1,36 @@
-$RESOURCE_GROUP  = "mlops-rg"
-$LOCATION        = "eastus"
-$STORAGE_ACCOUNT = "mlopsYOURINITIALSRANDOM"
-$FUNCTION_APP    = "mlops-trigger-fn"
+# Azure ML — workspace (Central US)
+$RESOURCE_GROUP = "mlops-wsh-rg-1"
+$AML_WORKSPACE   = "mlops-workspace"
+$LOCATION        = "centralus"
+$COMPUTE         = "nlp-cluster"
+$MODEL_NAME      = "sentiment_classifier"
+$ENDPOINT_NAME   = "nlp-sentiment-endpoint"
+$DEPLOYMENT_NAME = "blue"
 
-
-az ml workspace create `
-  --name mlops-workspace `
+# ── One-time: submit training job (same as Azure DevOps Train stage) ─────────
+az ml job create `
+  --file training/train_job.yml `
   --resource-group $RESOURCE_GROUP `
-  --location $LOCATION
+  --workspace-name $AML_WORKSPACE `
+  --stream
 
+# ── One-time: create online endpoint + deployment ───────────────────────────
+az ml online-endpoint create `
+  -f training/online_endpoint.yml `
+  -g $RESOURCE_GROUP -w $AML_WORKSPACE
 
+az ml online-deployment create `
+  -f training/online_deployment.yml `
+  -g $RESOURCE_GROUP -w $AML_WORKSPACE `
+  --all-traffic
 
-resource group:
+# ── Update deployment to latest model (same as Azure DevOps Deploy stage) ─────
+$VERSION = az ml model list --name $MODEL_NAME -g $RESOURCE_GROUP -w $AML_WORKSPACE --query "[0].version" -o tsv
+az ml online-deployment update `
+  --name $DEPLOYMENT_NAME `
+  --endpoint-name $ENDPOINT_NAME `
+  -g $RESOURCE_GROUP -w $AML_WORKSPACE `
+  --set "model=azureml:${MODEL_NAME}:${VERSION}"
 
-Creating Storage Account: (mlopsworstorage1a8a2f8dc  ) ..  Done (20s)
-Creating Key Vault: (mlopsworkeyvault785ad7da  )  Done (18s)
-Creating Log Analytics Workspace: (mlopsworlogalytib60589ad  )  Done (20s)
-
-
-az ml workspace create `
-  --name mlops-workspace `
-  --resource-group $RESOURCE_GROUP `
-  --location $LOCATION
+# ── Local development ─────────────────────────────────────────────────────────
+python pipeline.py --no-serve

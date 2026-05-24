@@ -1,14 +1,19 @@
 # ── Data ──────────────────────────────────────────────────────────────────────
-datasets>=2.19.0          # HuggingFace datasets (load_dataset("imdb"))
+datasets>=2.19.0
 pandas>=2.2.0
 
 # ── ML ────────────────────────────────────────────────────────────────────────
-scikit-learn>=1.4.0       # TfidfVectorizer + LogisticRegression
+scikit-learn>=1.4.0
 
 # ── Experiment tracking ───────────────────────────────────────────────────────
 mlflow>=2.13.0
 
-# ── Serving ───────────────────────────────────────────────────────────────────
+# ── Azure ML (training job + model registry; optional for local-only runs) ───
+azureml-mlflow>=1.56.0
+azure-ai-ml>=1.16.0
+azure-identity>=1.16.0
+
+# ── Serving (local FastAPI only) ──────────────────────────────────────────────
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 pydantic>=2.7.0

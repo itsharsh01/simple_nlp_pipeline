@@ -1,0 +1,18 @@
+{
+  "test_accuracy": 0.87,
+  "test_f1": 0.8679,
+  "test_precision": 0.8626,
+  "test_recall": 0.8732,
+  "test_roc_auc": 0.9413,
+  "confusion_matrix": [
+    [
+      443,
+      68
+    ],
+    [
+      62,
+      427
+    ]
+  ],
+  "classification_report": "              precision    recall  f1-score   support\n\n    negative       0.88      0.87      0.87       511\n    positive       0.86      0.87      0.87       489\n\n    accuracy                           0.87      1000\n   macro avg       0.87      0.87      0.87      1000\nweighted avg       0.87      0.87      0.87      1000\n"
+}

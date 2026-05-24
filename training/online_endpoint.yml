@@ -1,0 +1,5 @@
+# One-time setup: create the managed online endpoint
+# az ml online-endpoint create -f training/online_endpoint.yml -g mlops-wsh-rg-1 -w mlops-workspace
+$schema: https://azuremlschemas.azureedge.net/latest.onlineEndpoint.schema.json
+name: nlp-sentiment-endpoint
+auth_mode: key

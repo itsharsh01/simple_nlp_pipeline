@@ -1,0 +1,102 @@
+# Azure DevOps pipeline — train on AML compute, then update online endpoint
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/*
+      - training/*
+      - conda.yaml
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: mlops-vars
+  # Expected in variable group mlops-vars:
+  #   RESOURCE_GROUP     = mlops-wsh-rg-1
+  #   AML_WORKSPACE      = mlops-workspace
+  #   MODEL_NAME         = sentiment_classifier
+  #   ENDPOINT_NAME      = nlp-sentiment-endpoint
+  #   DEPLOYMENT_NAME    = blue
+
+stages:
+
+  - stage: Train
+    displayName: Train and Register Model
+    jobs:
+      - job: TrainJob
+        steps:
+          - task: AzureCLI@2
+            displayName: Install Azure ML CLI
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az extension add --name ml -y
+
+          - task: AzureCLI@2
+            displayName: Submit Training Job
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az ml job create \
+                  --file training/train_job.yml \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --workspace-name $(AML_WORKSPACE) \
+                  --stream
+
+  - stage: Deploy
+    displayName: Update Endpoint Deployment
+    dependsOn: Train
+    condition: succeeded()
+    jobs:
+      - job: DeployJob
+        steps:
+          - task: AzureCLI@2
+            displayName: Install Azure ML CLI
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az extension add --name ml -y
+
+          - task: AzureCLI@2
+            displayName: Get Latest Model Version and Deploy
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                MODEL_VERSION=$(az ml model list \
+                  --name $(MODEL_NAME) \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --workspace-name $(AML_WORKSPACE) \
+                  --query "[0].version" -o tsv)
+
+                echo "Deploying model version: $MODEL_VERSION"
+
+                az ml online-deployment update \
+                  --name $(DEPLOYMENT_NAME) \
+                  --endpoint-name $(ENDPOINT_NAME) \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --workspace-name $(AML_WORKSPACE) \
+                  --set model=azureml:$(MODEL_NAME):$MODEL_VERSION
+
+          - task: AzureCLI@2
+            displayName: Verify Endpoint is Live
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az ml online-endpoint show \
+                  --name $(ENDPOINT_NAME) \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --workspace-name $(AML_WORKSPACE) \
+                  --query "provisioning_state" -o tsv

@@ -1,0 +1,42 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+type: command
+
+display_name: nlp-train-register
+experiment_name: sentiment_analysis
+description: Prepare IMDB data, train TF-IDF+LogReg, evaluate, register model
+
+code: ../src
+command: >-
+  python train_and_register.py
+  --train-size ${{inputs.train_size}}
+  --test-size ${{inputs.test_size}}
+  --model-name ${{inputs.model_name}}
+
+compute: azureml:nlp-cluster
+
+environment:
+  conda_file: ../conda.yaml
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+
+inputs:
+  train_size:
+    type: integer
+    default: 5000
+  test_size:
+    type: integer
+    default: 1000
+  model_name:
+    type: string
+    default: sentiment_classifier
+
+environment_variables:
+  MODEL_NAME: ${{inputs.model_name}}
+  EXPERIMENT_NAME: sentiment_analysis
+  MIN_ACCURACY: "0.85"
+  MIN_F1: "0.85"
+
+outputs:
+  model_output:
+    type: uri_folder
+    mode: upload
+    path: outputs/model
