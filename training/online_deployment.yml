@@ -1,5 +1,5 @@
-# One-time setup: create deployment (run after first model is registered)
-# az ml online-deployment create -f training/online_deployment.yml -g mlops-wsh-rg-1 -w mlops-workspace --all-traffic
+# Optional: create deployment via CLI (deploy_to_azure.py can do this automatically)
+# az ml online-deployment create -f training/online_deployment.yml -g nlp-new-rg -w nlp-ws --all-traffic
 $schema: https://azuremlschemas.azureedge.net/latest.onlineDeployment.schema.json
 name: blue
 endpoint_name: nlp-sentiment-endpoint

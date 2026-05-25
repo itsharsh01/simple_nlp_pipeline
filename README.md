@@ -1,8 +1,8 @@
 # Simple NLP Pipeline
 
-End-to-end MLOps project for **movie-review sentiment analysis** (positive / negative). It trains a lightweight scikit-learn model on IMDB data, tracks experiments with MLflow, and supports **local development** plus **Azure ML** training and deployment via Azure DevOps.
+Movie-review **sentiment analysis** (positive / negative / neutral) using scikit-learn, MLflow, and an **Azure ML managed online endpoint** for production inference.
 
-For a full walkthrough (diagrams, stage-by-stage detail, CI/CD, troubleshooting), see **[flow.md](./flow.md)**.
+For detailed architecture notes, see **[flow.md](./flow.md)**.
 
 ---
 
@@ -10,19 +10,19 @@ For a full walkthrough (diagrams, stage-by-stage detail, CI/CD, troubleshooting)
 
 | Step | Description |
 |------|-------------|
-| **Prepare** | Download [IMDB](https://huggingface.co/datasets/stanfordnlp/imdb) via Hugging Face → `data/train.csv`, `data/test.csv` |
-| **Train** | TF-IDF + Logistic Regression, logged to MLflow |
-| **Evaluate** | Test metrics + quality gate (default: accuracy & F1 ≥ 0.85) |
-| **Register** | MLflow Model Registry + Azure ML model registry |
-| **Serve** | Local FastAPI API, or Azure ML managed online endpoint |
+| **Prepare** | Download [IMDB](https://huggingface.co/datasets/stanfordnlp/imdb) → CSVs (local pipeline) |
+| **Train** | TF-IDF + Logistic Regression |
+| **Evaluate** | Test metrics + quality gate (local pipeline) |
+| **Register** | MLflow + Azure ML model registry |
+| **Deploy** | `deploy_to_azure.py` → managed online endpoint |
 
-**Model:** scikit-learn `Pipeline` (not deep learning) — fast to train on CPU.
+**Model:** scikit-learn `Pipeline` — fast on CPU.
 
 ---
 
-## Deploy to Azure (one script)
+## Deploy to Azure (main workflow)
 
-Same flow as `nlp_train_register.ipynb` — train, register in MLflow, then deploy to a managed online endpoint.
+Train, register, and deploy in one command (same idea as `nlp_train_register.ipynb`):
 
 **Workspace:** `nlp-ws` · **Resource group:** `nlp-new-rg`
 
@@ -35,13 +35,13 @@ az login
 python deploy_to_azure.py
 ```
 
-Deploy an already-registered model (skip training):
+Redeploy the latest registered model without retraining:
 
 ```powershell
 python deploy_to_azure.py --skip-train
 ```
 
-Edit config at the top of `deploy_to_azure.py` if names change.
+Config: edit the top of **`deploy_to_azure.py`**.
 
 ### Live endpoint
 
@@ -54,34 +54,18 @@ curl -X POST "https://nlp-ws-oiynf.eastus.inference.ml.azure.com/score" `
   -d '{"text": "I love this product!"}'
 ```
 
-Replace `<PRIMARY_KEY>` with the endpoint key from Azure ML Studio → **Endpoints** → `nlp-sentiment-endpoint` → **Consume**.
+Get `<PRIMARY_KEY>` from Azure ML Studio → **Endpoints** → `nlp-sentiment-endpoint` → **Consume**.
 
 ---
 
-## Quick start (local)
+## Local development (optional)
 
 ```powershell
-cd simple_nlp_pipeline
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-
-# Run stages 1–4 (prepare → train → evaluate → register)
-python pipeline.py --no-serve
-
-# Full run including API on http://localhost:8000
-python pipeline.py
+python pipeline.py --no-serve    # prepare → train → evaluate → register
+python pipeline.py               # same + FastAPI on http://localhost:8000
 ```
 
-**API docs:** `http://localhost:8000/docs` after starting with `pipeline.py`.
-
-Example prediction:
-
-```bash
-curl -X POST http://localhost:8000/predict ^
-  -H "Content-Type: application/json" ^
-  -d "{\"text\": \"This movie was absolutely fantastic!\"}"
-```
+Local API docs: `http://localhost:8000/docs`
 
 ---
 
@@ -89,114 +73,36 @@ curl -X POST http://localhost:8000/predict ^
 
 ```
 simple_nlp_pipeline/
-├── src/                    # Core logic (used locally and on Azure ML)
-│   ├── prepare_data.py
-│   ├── train.py
-│   ├── evaluate.py
-│   ├── register.py
-│   ├── train_and_register.py   # Azure ML job entrypoint
-│   └── score.py                # Azure endpoint scoring
-├── pipeline.py             # Local orchestrator
-├── azure-pipeline.yml      # Azure DevOps CI/CD
-├── training/               # Azure ML YAML (job, endpoint, deployment)
-├── conda.yaml              # Environment for AML jobs & deployments
-├── data/                   # Generated CSVs
-├── serve/                  # Local FastAPI app
-└── flow.md                 # Detailed architecture & pipeline docs
+├── deploy_to_azure.py      # Train, register, deploy to Azure ML
+├── pipeline.py             # Local multi-stage pipeline
+├── src/                    # Core scripts + score.py for endpoint
+├── training/               # Optional AML YAML (endpoint / deployment)
+├── conda.yaml              # Environment for Azure deployment
+├── serve/                  # Local FastAPI
+└── flow.md
 ```
 
 ---
 
 ## Azure resources
 
-| Resource | Default name |
-|----------|----------------|
-| Resource group | `mlops-wsh-rg-1` |
-| Region | `centralus` |
-| ML workspace | `mlops-workspace` |
-| Compute cluster | `nlp-cluster` |
-| Model | `sentiment_classifier` |
+| Resource | Name |
+|----------|------|
+| Resource group | `nlp-new-rg` |
+| ML workspace | `nlp-ws` |
+| Model | `nlp-sentiment-model` |
 | Online endpoint | `nlp-sentiment-endpoint` |
 | Deployment | `blue` |
 
-Copy-paste CLI commands: **[commands.txt](./commands.txt)**.
-
-### Submit a training job
-
-```powershell
-az ml job create `
-  --file training/train_job.yml `
-  --resource-group mlops-wsh-rg-1 `
-  --workspace-name mlops-workspace `
-  --stream
-```
-
-### One-time: create endpoint (before CI deploy)
-
-```powershell
-az ml online-endpoint create -f training/online_endpoint.yml -g mlops-wsh-rg-1 -w mlops-workspace
-az ml online-deployment create -f training/online_deployment.yml -g mlops-wsh-rg-1 -w mlops-workspace --all-traffic
-```
-
----
-
-## Azure DevOps CI/CD
-
-Pipeline file: **`azure-pipeline.yml`**
-
-**Trigger:** pushes to `main` that change `src/`, `training/`, or `conda.yaml`.
-
-| Stage | Action |
-|-------|--------|
-| **Train** | `az ml job create` → runs `train_and_register.py` on `nlp-cluster` |
-| **Deploy** | Updates online deployment with latest `sentiment_classifier` version |
-
-**Variable group** `mlops-vars` (Library):
-
-- `RESOURCE_GROUP` = `mlops-wsh-rg-1`
-- `AML_WORKSPACE` = `mlops-workspace`
-- `MODEL_NAME` = `sentiment_classifier`
-- `ENDPOINT_NAME` = `nlp-sentiment-endpoint`
-- `DEPLOYMENT_NAME` = `blue`
-
-Service connection name in YAML: `azure-service-connection`.
-
----
-
-## Configuration
-
-| Item | Default |
-|------|---------|
-| Training samples | 5,000 train / 1,000 test |
-| MLflow experiment | `sentiment_analysis` |
-| Quality gate | accuracy ≥ 0.85, F1 ≥ 0.85 |
-| Registered model name | `sentiment_classifier` |
-
-Override locally:
-
-```powershell
-python pipeline.py --train-size 10000 --min-accuracy 0.87 --no-serve
-```
+CLI helpers: **[commands.txt](./commands.txt)**
 
 ---
 
 ## Requirements
 
 - Python 3.10+
-- Internet on first run (Hugging Face dataset download)
-- Azure CLI + `ml` extension (for cloud jobs / deployment)
-- Azure DevOps (optional, for CI/CD)
-
-Dependencies: **[requirements.txt](./requirements.txt)** (local) and **[conda.yaml](./conda.yaml)** (Azure ML).
-
----
-
-## Documentation
-
-| Doc | Contents |
-|-----|----------|
-| [flow.md](./flow.md) | Complete pipeline flow, Mermaid diagrams, MLflow vs AML registry, troubleshooting |
-| [commands.txt](./commands.txt) | Azure CLI reference |
+- `az login` for Azure deployment
+- **requirements.txt** (local) · **conda.yaml** (Azure endpoint environment)
 
 ---
 

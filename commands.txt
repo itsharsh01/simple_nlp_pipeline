@@ -1,40 +1,28 @@
-# Azure ML — workspace (Central US)
-$RESOURCE_GROUP = "nlp-new-rg"
-$AML_WORKSPACE   = "nlp-ws"
-$LOCATION        = "centralus"
-$COMPUTE         = "nlp-cluster"
-$MODEL_NAME      = "nlp-sentiment-model"
-$ENDPOINT_NAME   = "nlp-sentiment-endpoint"
-$DEPLOYMENT_NAME = "blue"
-
-# ── Train + register + deploy (same as notebook, one command) ─────────────────
-python deploy_to_azure.py
-python deploy_to_azure.py --skip-train
-
-# ── One-time: submit training job (same as Azure DevOps Train stage) ─────────
-az ml job create `
-  --file training/train_job.yml `
-  --resource-group $RESOURCE_GROUP `
-  --workspace-name $AML_WORKSPACE `
-  --stream
-
-# ── One-time: create online endpoint + deployment ───────────────────────────
-az ml online-endpoint create `
-  -f training/online_endpoint.yml `
-  -g $RESOURCE_GROUP -w $AML_WORKSPACE
-
-az ml online-deployment create `
-  -f training/online_deployment.yml `
-  -g $RESOURCE_GROUP -w $AML_WORKSPACE `
-  --all-traffic
-
-# ── Update deployment to latest model (same as Azure DevOps Deploy stage) ─────
-$VERSION = az ml model list --name $MODEL_NAME -g $RESOURCE_GROUP -w $AML_WORKSPACE --query "[0].version" -o tsv
-az ml online-deployment update `
-  --name $DEPLOYMENT_NAME `
-  --endpoint-name $ENDPOINT_NAME `
-  -g $RESOURCE_GROUP -w $AML_WORKSPACE `
-  --set "model=azureml:${MODEL_NAME}:${VERSION}"
-
-# ── Local development ─────────────────────────────────────────────────────────
-python pipeline.py --no-serve
+# Azure ML — nlp-ws / nlp-new-rg
+$RESOURCE_GROUP = "nlp-new-rg"
+$AML_WORKSPACE   = "nlp-ws"
+$MODEL_NAME      = "nlp-sentiment-model"
+$ENDPOINT_NAME   = "nlp-sentiment-endpoint"
+$DEPLOYMENT_NAME = "blue"
+
+# Live scoring URL
+# https://nlp-ws-oiynf.eastus.inference.ml.azure.com/score
+
+# ── Train + register + deploy (recommended) ───────────────────────────────────
+python deploy_to_azure.py
+python deploy_to_azure.py --skip-train
+
+# ── Optional: create endpoint via CLI instead of deploy_to_azure.py ───────────
+az ml online-endpoint create -f training/online_endpoint.yml -g $RESOURCE_GROUP -w $AML_WORKSPACE
+az ml online-deployment create -f training/online_deployment.yml -g $RESOURCE_GROUP -w $AML_WORKSPACE --all-traffic
+
+# ── Redeploy latest model version via CLI ─────────────────────────────────────
+$VERSION = az ml model list --name $MODEL_NAME -g $RESOURCE_GROUP -w $AML_WORKSPACE --query "[0].version" -o tsv
+az ml online-deployment update `
+  --name $DEPLOYMENT_NAME `
+  --endpoint-name $ENDPOINT_NAME `
+  -g $RESOURCE_GROUP -w $AML_WORKSPACE `
+  --set "model=azureml:${MODEL_NAME}:${VERSION}"
+
+# ── Local development ─────────────────────────────────────────────────────────
+python pipeline.py --no-serve

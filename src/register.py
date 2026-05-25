@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def _register_azure_ml_model(model_dir: Path, model_name: str) -> str | None:
-    """Create/update model in AML registry (used by azure-pipeline.yml deploy stage)."""
+    """Create/update model in AML workspace model registry."""
     if not model_dir.is_dir() or not (model_dir / "MLmodel").exists():
         log.warning("No MLflow model dir at %s — skipping AML model create", model_dir)
         return None

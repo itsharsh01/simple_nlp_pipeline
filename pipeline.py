@@ -1,6 +1,6 @@
 """
-Local pipeline — same stages as src/, for development without Azure ML.
-Azure DevOps uses azure-pipeline.yml → training/train_job.yml instead.
+Local pipeline — prepare, train, evaluate, register (optional FastAPI serve).
+For Azure deployment use deploy_to_azure.py instead.
 """
 
 import argparse
