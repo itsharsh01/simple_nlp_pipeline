@@ -20,6 +20,44 @@ For a full walkthrough (diagrams, stage-by-stage detail, CI/CD, troubleshooting)
 
 ---
 
+## Deploy to Azure (one script)
+
+Same flow as `nlp_train_register.ipynb` — train, register in MLflow, then deploy to a managed online endpoint.
+
+**Workspace:** `nlp-ws` · **Resource group:** `nlp-new-rg`
+
+```powershell
+cd simple_nlp_pipeline
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+az login
+
+python deploy_to_azure.py
+```
+
+Deploy an already-registered model (skip training):
+
+```powershell
+python deploy_to_azure.py --skip-train
+```
+
+Edit config at the top of `deploy_to_azure.py` if names change.
+
+### Live endpoint
+
+**Scoring URL:** https://nlp-ws-oiynf.eastus.inference.ml.azure.com/score
+
+```powershell
+curl -X POST "https://nlp-ws-oiynf.eastus.inference.ml.azure.com/score" `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer <PRIMARY_KEY>" `
+  -d '{"text": "I love this product!"}'
+```
+
+Replace `<PRIMARY_KEY>` with the endpoint key from Azure ML Studio → **Endpoints** → `nlp-sentiment-endpoint` → **Consume**.
+
+---
+
 ## Quick start (local)
 
 ```powershell

@@ -1,11 +1,15 @@
 # Azure ML — workspace (Central US)
-$RESOURCE_GROUP = "mlops-wsh-rg-1"
-$AML_WORKSPACE   = "mlops-workspace"
+$RESOURCE_GROUP = "nlp-new-rg"
+$AML_WORKSPACE   = "nlp-ws"
 $LOCATION        = "centralus"
 $COMPUTE         = "nlp-cluster"
-$MODEL_NAME      = "sentiment_classifier"
+$MODEL_NAME      = "nlp-sentiment-model"
 $ENDPOINT_NAME   = "nlp-sentiment-endpoint"
 $DEPLOYMENT_NAME = "blue"
+
+# ── Train + register + deploy (same as notebook, one command) ─────────────────
+python deploy_to_azure.py
+python deploy_to_azure.py --skip-train
 
 # ── One-time: submit training job (same as Azure DevOps Train stage) ─────────
 az ml job create `
